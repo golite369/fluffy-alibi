@@ -1,0 +1,27 @@
+{
+  "id": "./",
+  "name": "毛茸茸的不在场证明",
+  "short_name": "毛茸茸的证明",
+  "lang": "zh-CN",
+  "description": "像素动物探案，手机竖屏推理",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#513421",
+  "theme_color": "#513421",
+  "icons": [
+    {
+      "src": "./assets/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

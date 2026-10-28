@@ -12,7 +12,8 @@ window.FluffyWeb.ready.then(function(){
   const storage=window.FluffyWeb.storage;
   let disk=S.read(storage,CASES),storageWarned=false,pendingImport=null;
   let view = 'home', current = null, game = null, lit = null, hintCell = null, hint = null, chosen = null, replayIndex = 0;
-  let toastTimer, pendingCell, audio;
+  let toastTimer, pendingCell;
+  const sound=window.FluffySound.create(window);sound.configure(disk.settings);
   let chapterTab=0,caseFilter='all',introAfterGuide=false;
   const pixelIcons={"back":["000100000000","001100000000","011100000000","111111111110","011100000000","001100000000","000100000000"],"more":["000000000000","000000000000","011001100110","011001100110","000000000000"],"close":["110000000011","011000000110","001100001100","000110011000","000011110000","000001100000","000011110000","000110011000","001100001100","011000000110","110000000011"],"place":["000011000000","000011000000","000111100000","000111100000","001111110000","001111110000","011111111000","000111100000","000111100000","011111111000"],"note":["000000011000","000000111100","000001111110","000011111100","000111111000","001111110000","011111100000","011111000000","011110000000","011100000000","011000000000"],"undo":["000100000000","001100000000","011111111000","111111111100","011100001110","001100000110","000100000110","000000000110","000000001110","000111111100","000111111000"],"hint":["000111111000","001100001100","011000000110","011000000110","011000000110","001100001100","000110011000","000110011000","000111111000","000100001000","000111111000","000011110000"],"arrow":["000000010000","000000011000","000000011100","011111111110","011111111111","011111111110","000000011100","000000011000","000000010000"],"book":["011111111110","110001100011","110001100011","110001100011","110001100011","110001100011","110001100011","110001100011","111111111111","011111111110"],"check":["000000000011","000000000110","000000001100","000000011000","110000110000","011001100000","001111000000","000110000000"],"sound":["000011000000","000111000100","001111001100","111111011000","111111011000","111111011000","001111001100","000111000100","000011000000"],"gear":["000110011000","001111111100","011111111110","111100001111","111000000111","011001100110","011001100110","111000000111","111100001111","011111111110","001111111100","000110011000"],"x":["110000000011","011000000110","001100001100","000110011000","000011110000","000001100000","000011110000","000110011000","001100001100","011000000110","110000000011"]};
   pixelIcons.erase=['000001110000','000011111000','000111111100','001111111110','011111111100','111111111000','011111110000','001111100000','000111000000','000011111110'];
@@ -35,16 +36,13 @@ window.FluffyWeb.ready.then(function(){
     if(!from.length)return toast(redo?'没有可重做的操作。':'还没有可撤销的操作。');
     to.push(snap());const previous=from.pop();
     if(!previous || !previous.placed || !previous.notes || !previous.excluded){from.length=0;persist();return toast('这段历史记录无法恢复，请继续调查。');}
-    Object.assign(game,previous);lit=null;hintCell=null;hint=null;persist();render();beep(redo?420:300);
+    Object.assign(game,previous);lit=null;hintCell=null;hint=null;persist();render();playSound(redo?'redo':'undo');
   }
   function toast(message) {
     const el=document.getElementById('toast');el.textContent=message;el.classList.add('show');
     clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.classList.remove('show');el.textContent='';},3300);
   }
-  function beep(freq=510) {
-    if(!disk.settings.sound)return;
-    try { audio=audio||new (window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.type='triangle';o.frequency.value=freq;g.gain.setValueAtTime(.07,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.09);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+.1); } catch(_error){}
-  }
+  function playSound(name){sound.play(name);}
   function modal(title, body) {
     delete dialog.dataset.manual;
     dialog.innerHTML=`<header class="modal-head"><h2 id="modal-title">${title}</h2><button class="quiet-btn" data-action="close-modal" aria-label="关闭">${icon('close')}</button></header><div class="modal-body">${body}</div>`;
@@ -156,11 +154,11 @@ window.FluffyWeb.ready.then(function(){
     if(game.mode==='erase'){
       const hasAnimal=Object.keys(game.placed).some(id=>game.placed[id]===cell),hasMark=game.excludedCells.includes(cell)||['notes','excluded'].some(field=>Object.keys(game[field]).some(id=>game[field][id].includes(cell)));
       if(!hasAnimal&&!hasMark)return;
-      mutate(()=>{Object.keys(game.placed).forEach(id=>{if(game.placed[id]===cell)delete game.placed[id];});game.excludedCells=game.excludedCells.filter(at=>at!==cell);['notes','excluded'].forEach(field=>Object.keys(game[field]).forEach(id=>{game[field][id]=game[field][id].filter(at=>at!==cell);}));});beep(300);return;
+      mutate(()=>{Object.keys(game.placed).forEach(id=>{if(game.placed[id]===cell)delete game.placed[id];});game.excludedCells=game.excludedCells.filter(at=>at!==cell);['notes','excluded'].forEach(field=>Object.keys(game[field]).forEach(id=>{game[field][id]=game[field][id].filter(at=>at!==cell);}));});playSound('erase');return;
     }
     if(game.mode==='exclude'){
       if(Object.keys(game.placed).some(id=>game.placed[id]===cell))return toast('这里已有动物，请先用擦除工具撤下。');
-      mutate(()=>{const marks=new Set(game.excludedCells);marks.has(cell)?marks.delete(cell):marks.add(cell);game.excludedCells=Array.from(marks);});beep(370);return;
+      mutate(()=>{const marks=new Set(game.excludedCells);marks.has(cell)?marks.delete(cell):marks.add(cell);game.excludedCells=Array.from(marks);});playSound('exclude');return;
     }
     const p=currentCharacter(),other=Object.entries(game.placed).find(([,at])=>at===cell);
     if(other){if(other[0]!==p.id){const occupant=current.characters.find(ch=>ch.id===other[0]);toast(`这里已有${occupant.name}；当前选择${p.name}，请点空格放置。`);}else toast(`${p.name}在${positionText(cell)}。点空格可移动。`);return;}
@@ -168,7 +166,7 @@ window.FluffyWeb.ready.then(function(){
     if(game.mode==='place'){
       if(disk.settings.assist){const problem=E.structural(current,game.placed,p.id,cell);if(problem)return toast(problem);}
       if(disk.settings.assist&&!override&&game.excludedCells.includes(cell)){pendingCell=cell;return modal('放在已排除的格子？',`<p>这里有你的排除标记。仍要放置吗？放置会清除这一格的标记，其他格不受影响，可以撤销。</p><button class="wood-btn primary full" data-action="override-place">仍然放置</button><button class="quiet-btn full" data-action="close-modal">保留标记</button>`);}
-      mutate(()=>{game.placed[p.id]=cell;game.excludedCells=game.excludedCells.filter(at=>at!==cell);});beep();
+      mutate(()=>{game.placed[p.id]=cell;game.excludedCells=game.excludedCells.filter(at=>at!==cell);});playSound('place');
     }
   }
   let guideStep=0,manualTab='basic';
@@ -217,7 +215,7 @@ window.FluffyWeb.ready.then(function(){
   function showAllClues(){modal('全部已核实线索',(current.generalClues&&current.generalClues.length?'<h3>通用线索</h3>'+current.generalClues.map(g=>'<p>'+esc(g.text)+'</p>').join('')+'<h3>动物证词</h3>':'')+current.characters.map(p=>`<div class="modal-cast-row">${img(p.kind)}<div><strong>${p.name}</strong> <span class="tiny muted">${KIND[p.kind]} · ${p.role}</span> ${p.victim?'<span class="victim-inline">受害者</span>':''}<p>${p.clue}</p>${game.placed[p.id]!==undefined?`<span class="clue-counter">已放置 · ${positionText(game.placed[p.id])}</span>`:''}</div></div>`).join(''));}
   function showTools(){modal('调查工具',`<div class="tools-list"><button class="wood-btn" data-action="delete-animal">删除当前动物</button><button class="wood-btn" data-action="redo">重做一步</button><button class="wood-btn" data-action="all-clues">全部线索</button><button class="wood-btn" data-action="legend">地图图例</button><button class="wood-btn" data-action="toggle-favorite">${disk.favorites.includes(current.id)?'取消收藏本案':'收藏本案'}</button><button class="wood-btn" data-action="save-manager">存档管理</button><button class="wood-btn" data-action="settings">游戏设置</button><button class="wood-btn" data-action="restart-confirm">重新调查本案</button></div><p class="tiny muted" style="margin-top:16px">移动、删除和笔记都可以撤销。重新调查会清空本案现场，已结案记录保留。</p>`);}
   function setAssist(enabled){disk.settings.assist=enabled;lit=null;hintCell=null;save();render();}
-  function showSettings(){modal('游戏设置',`<label class="settings-row"><span>辅助判定</span><input type="checkbox" data-setting="assist" ${disk.settings.assist?'checked':''}></label><p class="tiny muted assist-help">开启：灰显已占行列，拦截行列和道具冲突。关闭：允许自由试放，点“检查现场”时再校验。切换不会清空现场。</p><label class="settings-row"><span>落子音效</span><input type="checkbox" data-setting="sound" ${disk.settings.sound?'checked':''}></label><label class="settings-row"><span>显示用时</span><input type="checkbox" data-setting="timer" ${disk.settings.timer?'checked':''}></label><label class="settings-row"><span>首案教学提示</span><input type="checkbox" data-setting="guide" ${disk.settings.guide?'checked':''}></label><label class="settings-row"><span>较大线索文字</span><input type="checkbox" data-setting="largeText" ${disk.settings.largeText?'checked':''}></label><label class="settings-row"><span>减少界面动效</span><input type="checkbox" data-setting="reducedMotion" ${disk.settings.reducedMotion?'checked':''}></label><p class="tiny muted">计时不影响结案，没有限时失败。进度和笔记保存在当前浏览器；清除浏览器数据会清除存档。</p><button class="wood-btn full" data-action="close-modal">保存设置</button>`);}
+  function showSettings(){modal('游戏设置',`<label class="settings-row"><span>辅助判定</span><input type="checkbox" data-setting="assist" ${disk.settings.assist?'checked':''}></label><p class="tiny muted assist-help">开启：灰显已占行列，拦截行列和道具冲突。关闭：允许自由试放，点“检查现场”时再校验。切换不会清空现场。</p><h3 class="audio-heading">声音</h3><label class="settings-row"><span>操作音效</span><input type="checkbox" data-setting="sound" ${disk.settings.sound?'checked':''}></label><label class="audio-volume"><span>音效音量</span><input type="range" min="0" max="100" step="5" value="${Math.round(disk.settings.soundVolume*100)}" data-audio-volume="soundVolume" aria-label="音效音量"></label><label class="settings-row"><span>背景音乐</span><input type="checkbox" data-setting="music" ${disk.settings.music?'checked':''}></label><label class="audio-volume"><span>音乐音量</span><input type="range" min="0" max="100" step="5" value="${Math.round(disk.settings.musicVolume*100)}" data-audio-volume="musicVolume" aria-label="音乐音量"></label><p class="audio-note">《午夜案卷》· 轻柔像素侦探曲。切到后台暂停；声音需点击后开启，原有静音设置会保留。</p><button class="wood-btn full" data-action="preview-sound">试听操作音效</button><label class="settings-row"><span>显示用时</span><input type="checkbox" data-setting="timer" ${disk.settings.timer?'checked':''}></label><label class="settings-row"><span>首案教学提示</span><input type="checkbox" data-setting="guide" ${disk.settings.guide?'checked':''}></label><label class="settings-row"><span>较大线索文字</span><input type="checkbox" data-setting="largeText" ${disk.settings.largeText?'checked':''}></label><label class="settings-row"><span>减少界面动效</span><input type="checkbox" data-setting="reducedMotion" ${disk.settings.reducedMotion?'checked':''}></label><p class="tiny muted">计时不影响结案，没有限时失败。进度和笔记保存在当前浏览器；清除浏览器数据会清除存档。</p><button class="wood-btn full" data-action="close-modal">保存设置</button>`);}
   function proofDetails(step){
     const rows=step.deductions||[];if(!rows.length)return '';
     const cells=indices=>indices.map(i=>{const [r,col]=E.pos(current,i);return `(${r},${col})`;}).join('、');
@@ -238,8 +236,8 @@ window.FluffyWeb.ready.then(function(){
   }
   function check(){
     const problems=E.issues(current,game.placed,true);
-    if(problems.length)return modal('现场还没有完全对上',`<div class="hint-head">${img('owl')}<p>位置放齐了，但有线索尚未满足。</p></div>${problems.slice(0,2).map(p=>`<div class="hint-explanation" style="margin-bottom:10px">${p.message}</div>`).join('')}<button class="wood-btn full" data-action="close-modal">回到现场</button>`);
-    chosen=null;showAccusation();
+    if(problems.length){playSound('error');return modal('现场还没有完全对上',`<div class="hint-head">${img('owl')}<p>位置放齐了，但有线索尚未满足。</p></div>${problems.slice(0,2).map(p=>`<div class="hint-explanation" style="margin-bottom:10px">${p.message}</div>`).join('')}<button class="wood-btn full" data-action="close-modal">回到现场</button>`);}
+    playSound('check');chosen=null;showAccusation();
   }
   function showAccusation(error=''){
     const v=current.characters.find(p=>p.victim);
@@ -247,10 +245,10 @@ window.FluffyWeb.ready.then(function(){
   }
   function finish(){
     const culprit=E.culprit(current,game.placed);
-    if(chosen!==culprit){game.wrongAccusations++;persist();const v=current.characters.find(p=>p.victim);return showAccusation(`再看看区域边界：你选择的动物没有与${v.name}单独处于同一区域。`);}
+    if(chosen!==culprit){playSound('error');game.wrongAccusations++;persist();const v=current.characters.find(p=>p.victim);return showAccusation(`再看看区域边界：你选择的动物没有与${v.name}单独处于同一区域。`);}
     if(!disk.completed.includes(current.id))disk.completed.push(current.id);
     game.attemptActive=false;const old=disk.records[current.id];disk.records[current.id]={solves:((old&&old.solves)||0)+1,bestSeconds:old?Math.min(old.bestSeconds,game.seconds):game.seconds,bestHints:old?Math.min(old.bestHints,game.hints):game.hints,lastFinishedAt:new Date().toISOString()};
-    persist();closeModal();view='resolution';replayIndex=current.steps.length;render();window.scrollTo(0,0);beep(740);
+    persist();closeModal();view='resolution';replayIndex=current.steps.length;render();window.scrollTo(0,0);playSound('win');
   }
   function solution(){return Object.fromEntries(current.steps.map(s=>[s.id,s.cell]));}
   function resolution(){
@@ -275,7 +273,7 @@ window.FluffyWeb.ready.then(function(){
   function confirmImport(){
     if(!pendingImport)return;
     disk=S.normalize(Object.assign({},disk,pendingImport,{games:Object.assign({},disk.games,pendingImport.games),completed:[...new Set([...disk.completed,...pendingImport.completed])],favorites:[...new Set([...disk.favorites,...pendingImport.favorites])],records:Object.assign({},disk.records,pendingImport.records)}),CASES);
-    pendingImport=null;current=null;game=null;view='home';save();closeModal();render();window.scrollTo(0,0);toast('存档已导入，可以继续调查。');
+    pendingImport=null;current=null;game=null;view='home';sound.configure(disk.settings);sound.unlock();save();closeModal();render();window.scrollTo(0,0);toast('存档已导入，可以继续调查。');
   }
   function showJournal(){
     const rows=[...new Map(CASES.map(c=>[c.chapterIndex,c.chapter])).entries()].map(([i,title])=>{const items=CASES.filter(c=>c.chapterIndex===i),done=items.filter(c=>disk.completed.includes(c.id)).length;return `<div class="journal-row"><strong>${title}</strong><span>${done} / ${items.length}</span></div>`;}).join('');
@@ -296,7 +294,8 @@ window.FluffyWeb.ready.then(function(){
   document.addEventListener('click',event=>{
     const el=event.target.closest('[data-action]');if(!el||el.disabled)return;
     if(event.target.closest('.clue-toggle'))return;
-    const action=el.dataset.action;
+    const action=el.dataset.action;sound.unlock();
+    const actionSounds={'open-case':'open','select':'select','mode':'select','hint':'hint','hint-explain':'select','start-investigation':'open'};if(actionSounds[action])playSound(actionSounds[action]);
     switch(action){
       case 'chapter':chapterTab=Number(el.dataset.chapter);render();break;
       case 'open-case':closeModal();openCase(el.dataset.case);break;
@@ -317,9 +316,10 @@ window.FluffyWeb.ready.then(function(){
       case 'all-clues':showAllClues();break;
       case 'tools':showTools();break;
       case 'settings':showSettings();break;
+      case 'preview-sound':sound.preview().then(ok=>{if(!ok)toast('当前环境暂时不能播放声音，请确认设备媒体音量。');});break;
       case 'dismiss-guide':disk.settings.guide=false;save();render();break;
       case 'highlight':if(el.dataset.owner){game.selected=el.dataset.owner;game.mode='place';persist();}lit=(lit&&lit.type)===el.dataset.type&&(lit&&lit.key)===el.dataset.key?null:{type:el.dataset.type,key:el.dataset.key};render();break;
-      case 'delete-animal':closeModal();if(game.placed[game.selected]===undefined)toast('当前动物还没有正式放置。');else{mutate(()=>delete game.placed[game.selected]);beep(300);}break;
+      case 'delete-animal':closeModal();if(game.placed[game.selected]===undefined)toast('当前动物还没有正式放置。');else{mutate(()=>delete game.placed[game.selected]);playSound('erase');}break;
       case 'override-place':closeModal();tapCell(pendingCell,true);break;
       case 'hint':showHint(0);break;
       case 'hint-explain':showHint(1);break;
@@ -346,7 +346,7 @@ window.FluffyWeb.ready.then(function(){
       case 'about':modal('关于作品',`${img('cover','opening-cover','毛茸茸的不在场证明竖版封面')}${img('owl','intro-portrait','探长')}<p><strong>毛茸茸的不在场证明</strong>是一款中文动物题材的空间逻辑推理游戏。本地完整版本包含六章、三十个独立案件，地图从 4×4 递进至 8×8，从四位动物的入门现场逐步递进。</p><p>参考 Murdoku 的行列、区域、物件与真实证词设计，案件和中文故事均为本项目内容。包括道具定位、区域人数、独处与同区关系、双位和三位行列组合、分层提示、逐步复盘、线索核对、收藏与存档备份。</p><p>16 套场景主题、64 件像素道具和简单动物昵称已经内置，证词与图例随场景切换。全部运行在本地，无账号、无联网服务；可以自由选择任一案件。</p><button class="wood-btn full" data-action="font-license">像素字体许可</button><button class="quiet-btn full" data-action="close-modal">回到案卷</button>`);break;
     }
   });
-  document.addEventListener('change',event=>{if(event.target.matches('[data-filter]')){caseFilter=event.target.value;render();return;}if(event.target.dataset.clueCheck){const id=event.target.dataset.clueCheck;mutate(()=>{game.checked=game.checked.includes(id)?game.checked.filter(x=>x!==id):[...game.checked,id];});return;}const key=event.target.dataset.setting;if(!key)return;if(key==='assist'){setAssist(event.target.checked);return;}disk.settings[key]=event.target.checked;save();render();if(key==='sound')beep();});
+  document.addEventListener('change',event=>{if(event.target.matches('[data-filter]')){caseFilter=event.target.value;render();return;}if(event.target.dataset.clueCheck){const id=event.target.dataset.clueCheck;mutate(()=>{game.checked=game.checked.includes(id)?game.checked.filter(x=>x!==id):[...game.checked,id];});return;}const key=event.target.dataset.setting;if(!key)return;if(key==='assist'){setAssist(event.target.checked);return;}disk.settings[key]=event.target.checked;save();render();if(key==='sound'||key==='music'){sound.configure(disk.settings);sound.unlock();if(key==='sound'&&disk.settings.sound)playSound('select');}});
   dialog.addEventListener('cancel',event=>{if(dialog.dataset.manual==='onboarding'){event.preventDefault();closeModal();}});
   dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
   document.addEventListener('keydown',event=>{
@@ -361,9 +361,12 @@ window.FluffyWeb.ready.then(function(){
   });
   setInterval(()=>{if(view==='game'&&game.started&&!document.hidden&&!dialog.open){game.seconds++;const timer=document.querySelector('[data-elapsed]');if(timer)timer.textContent=timeText(game.seconds);if(game.seconds%15===0)persist();}},1000);
   window.addEventListener('pagehide',persist);
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)persist();});
+  document.addEventListener('visibilitychange',()=>{sound.pause(document.hidden);if(document.hidden)persist();});
+  window.addEventListener('pagehide',()=>sound.pagehide());window.addEventListener('pageshow',()=>sound.pageshow());
   window.addEventListener('resize',layoutInvestigation);
   if(window.visualViewport)window.visualViewport.addEventListener('resize',layoutInvestigation);
+  document.addEventListener('input',event=>{const key=event.target.dataset.audioVolume;if(!['soundVolume','musicVolume'].includes(key))return;const value=Number(event.target.value);if(!Number.isFinite(value))return;disk.settings[key]=Math.max(0,Math.min(1,value/100));sound.configure(disk.settings);sound.unlock();save();});
+  document.addEventListener('keydown',()=>sound.unlock());
   render();
 })();
 

@@ -8,6 +8,7 @@
   const objectsAt = (c, i) => mapFor(c).objects[i]||[];
   const passable = (c, i) => Number.isInteger(i) && i >= 0 && i < c.size ** 2 && !objectsAt(c, i).some(o => !o.occupiable);
   function staticMatch(c, cell, rule) {
+    if (rule.type === 'any') return rule.rules.some(r=>staticMatch(c,cell,r));
     if (rule.type === 'edge') { const [r,col]=pos(c,cell);return r===1||col===1||r===c.size||col===c.size; }
     if (rule.type === 'corner') { const [r,col]=pos(c,cell);return (r===1||r===c.size)&&(col===1||col===c.size); }
     if (rule.type === 'not-beside') return !staticMatch(c,cell,{type:'beside',kind:rule.kind});
@@ -38,7 +39,7 @@
   function domain(c, char) {
     return Array.from({ length: c.size ** 2 }, (_, i) => i).filter(i => passable(c, i) && char.rules.every(rule => staticMatch(c, i, rule)));
   }
-  function issues(c, placed, complete = false) {
+  function issues(c, placed, complete = false, knownDomains) {
     const result = [], occupants = Object.entries(placed);
     for (const [id, cell] of occupants) {
       const char = c.characters.find(p => p.id === id);
@@ -65,9 +66,14 @@
     const victim = c.characters.find(p => p.victim);
     if (placed[victim.id] !== undefined) {
       const count = occupants.filter(([, cell]) => areaAt(c, cell) === areaAt(c, placed[victim.id])).length;
-      if (count > 2 || (complete && count !== 2)) result.push({ id: victim.id, message: '受害者所在区域必须恰好有两位动物。' });
+      if (count > 2 || (complete && count !== 2)) result.push({ id: victim.id, message: '案发区域内必须只有受害者和凶手。' });
     }
     if (complete && occupants.length !== c.characters.length) result.push({ message: '请先放齐所有动物，包括受害者。' });
+    for(const g of c.generalClues||[]){
+      const matched=occupants.filter(([,cell])=>staticMatch(c,cell,g.where)).length;let minimum=matched,maximum=matched;
+      for(const p of c.characters)if(placed[p.id]===undefined){const options=(knownDomains?knownDomains[p.id]:domain(c,p)).filter(i=>!structural(c,placed,p.id,i));if(options.length&&options.every(i=>staticMatch(c,i,g.where)))minimum++;if(options.some(i=>staticMatch(c,i,g.where)))maximum++;}
+      if(minimum>g.count||maximum<g.count||(complete&&matched!==g.count))result.push({general:g.id,message:'通用线索未满足：'+g.text});
+    }
     return result;
   }
   function structural(c, placed, id, cell) {
@@ -83,8 +89,8 @@
     return null;
   }
   function solve(c, given = {}, limit = 2) {
-    if (issues(c, given).length) return [];
     const domains = Object.fromEntries(c.characters.map(p => [p.id, domain(c, p)]));
+    if (issues(c, given, false, domains).length) return [];
     const answers = [];
     function search(placed) {
       if (answers.length >= limit) return;
@@ -92,7 +98,7 @@
         if (!issues(c, placed, true).length) answers.push(Object.assign({},placed));
         return;
       }
-      const todo = c.characters.filter(p => placed[p.id] === undefined).map(p => ({ p, options: domains[p.id].filter(cell => !structural(c, placed, p.id, cell) && !issues(c, Object.assign({},placed,{[p.id]:cell})).length) })).sort((a, b) => a.options.length - b.options.length);
+      const todo = c.characters.filter(p => placed[p.id] === undefined).map(p => ({ p, options: domains[p.id].filter(cell => !structural(c, placed, p.id, cell) && !issues(c, Object.assign({},placed,{[p.id]:cell}), false, domains).length) })).sort((a, b) => a.options.length - b.options.length);
       const next = todo[0];
       for (const cell of next.options) search(Object.assign({},placed,{[next.p.id]:cell}));
     }
@@ -103,7 +109,7 @@
   const MAX_STRATEGY=4;
   function analyze(c,given={},maxStrategy=MAX_STRATEGY){
     const chars=c.characters,domains=Object.fromEntries(chars.map(p=>[p.id,given[p.id]===undefined?domain(c,p):[given[p.id]]])),placed=Object.assign({},given),steps=[],events=[],why={};
-    const metrics={initialCandidates:Object.values(domains).reduce((n,a)=>n+a.length,0),maxStrategy:0,relationReductions:0,pairReductions:0,tripleReductions:0,quadReductions:0,jointReductions:0,eliminations:0};
+    const metrics={initialCandidates:Object.values(domains).reduce((n,a)=>n+a.length,0),maxStrategy:0,relationReductions:0,pairReductions:0,tripleReductions:0,quadReductions:0,jointReductions:0,globalReductions:0,eliminations:0};
     const positions=Object.fromEntries(chars.map((p,i)=>[p.id,i])),pairCache=new Map(),cells=c.size*c.size;
     const canPair=(p,i,q,j)=>{let a=positions[p.id],b=positions[q.id];if(a>b){[a,b]=[b,a];[i,j]=[j,i];[p,q]=[q,p];}const key=((a*chars.length+b)*cells+i)*cells+j;let value=pairCache.get(key);if(value===undefined){value=compatible(c,p,i,q,j);pairCache.set(key,value);}return value;};
     let changed=true,round=0,eventCursor=0;
@@ -112,6 +118,7 @@
       domains[p.id]=next;why[p.id]=reason;changed=true;metrics.maxStrategy=Math.max(metrics.maxStrategy,rank);metrics.eliminations+=before.length-next.length;
       if(rank===1)metrics.relationReductions++;if(rank===2)metrics.pairReductions++;if(rank===3)metrics.tripleReductions++;
       if(technique==='quad')metrics.quadReductions++;if(technique==='joint')metrics.jointReductions++;
+      if(technique==='global')metrics.globalReductions++;
       events.push({id:p.id,rank,technique,witness,reason,removed:before.filter(i=>!next.includes(i)),remaining:[...next]});return true;
     };
     while(changed&&round++<120){
@@ -131,6 +138,11 @@
         if(options.length===1){const {p,i}=options[0];reduce(p,x=>x===i,`第${line}${axis===0?'行':'列'}必须有一位动物，而这一行列只剩${p.name}能在${coord(c,i)}。`,0);}
       }
       if(changed)continue;
+      if(maxStrategy>=1)for(const g of c.generalClues||[])for(const p of chars){
+        const others=chars.filter(q=>q!==p),minimum=others.filter(q=>domains[q.id].length&&domains[q.id].every(i=>staticMatch(c,i,g.where))).length,maximum=others.filter(q=>domains[q.id].some(i=>staticMatch(c,i,g.where))).length;
+        reduce(p,i=>{const own=staticMatch(c,i,g.where)?1:0;return minimum+own<=g.count&&maximum+own>=g.count;},'结合通用线索「'+g.text+'」，比较已确定与可能符合条件的动物数。',1,'global',{id:g.id});
+      }
+      if(changed)continue;
       if(maxStrategy>=1){
         for(const p of chars)for(const q of chars){
           if(p===q)continue;
@@ -147,7 +159,7 @@
             const min=1+other.filter(q=>domains[q.id].length&&domains[q.id].every(j=>areaAt(c,j)===a)).length;
             const max=1+other.filter(q=>domains[q.id].some(j=>areaAt(c,j)===a)).length;
             return min<=count&&max>=count;
-          },`${p.name}所在区域必须恰有${count}位动物；比较各区域可能与必须出现的动物数。`,1);
+          },(p.victim?'案发区域内只有受害者和凶手，总共2位':`${p.name}所在区域必须恰有${count}位动物，包含自己`)+`；比较各区域可能与必须出现的动物数。`,1);
           const candidateAreas=[...new Set(domains[p.id].map(i=>areaAt(c,i)))];
           if(candidateAreas.length===1){
             const a=candidateAreas[0],forced=chars.filter(q=>domains[q.id].length&&domains[q.id].every(i=>areaAt(c,i)===a)),possible=chars.filter(q=>domains[q.id].some(i=>areaAt(c,i)===a));
@@ -206,7 +218,7 @@
     const victim = c.characters.find(p => p.victim);
     return (c.characters.find(p => !p.victim && areaAt(c, placed[p.id]) === areaAt(c, placed[victim.id]))||{}).id || null;
   }
-  const api = { pos, index, areaAt, objectsAt, passable, domain, issues, structural, solve, culprit, compatible, analyze, MAX_STRATEGY };
+  const api = { pos, index, areaAt, objectsAt, passable, matches:staticMatch, domain, issues, structural, solve, culprit, compatible, analyze, MAX_STRATEGY };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ForestEngine = api;
 })(typeof window !== 'undefined' ? window : this);

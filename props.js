@@ -921,24 +921,42 @@
  function kinds(c){const t=theme(c);return roles.map(role=>t.props[role]);}
  function clue(c,p){
   const other=id=>c.characters.find(q=>q.id===id).name;
+  const brief=c.level>=13;
   const phrases=p.rules.map(r=>{
+   if(r.type==='any'){
+    const list=r.rules;
+    if(list.every(x=>x.type==='beside'))return '在'+list.map(x=>get(x.kind).name).join('或')+'旁';
+    if(list.every(x=>x.type==='on'))return '在'+list.map(x=>get(x.kind).name).join('或')+'上';
+    if(list.every(x=>x.type==='in'))return '在'+list.map(x=>x.area).join('或');
+    throw Error('不支持的二选一证词');
+   }
    if(r.type==='in')return '在'+r.area;
    if(r.type==='not-in')return (p.victim?'不在':'没进')+r.area;
-   if(r.type==='on')return get(r.kind).verb+'在'+(r.area?r.area+'的':'')+get(r.kind).name+'上';
+   if(r.type==='on')return (brief?'':get(r.kind).verb)+'在'+(r.area?r.area+'的':'')+get(r.kind).name+'上';
    if(r.type==='not-on')return '没在'+get(r.kind).name+'上';
-   if(r.type==='beside')return '身旁是'+get(r.kind).name;
+   if(r.type==='beside')return brief?'在'+get(r.kind).name+'旁':'身旁是'+get(r.kind).name;
    if(r.type==='not-beside')return '不挨着'+get(r.kind).name;
-   if(r.type==='edge')return '在地图外圈';
-   if(r.type==='corner')return '在地图角落';
-   if(r.type==='alone')return '当时独处';
-   if(r.type==='count')return '同区共'+r.count+'位';
+   if(r.type==='edge')return brief?'在外圈':'在地图外圈';
+   if(r.type==='corner')return brief?'在角落':'在地图角落';
+   if(r.type==='alone')return brief?'独处':'当时独处';
+   if(r.type==='count')return (brief?'同区':'同区共')+r.count+'位';
    if(r.type==='with')return '与'+other(r.other)+'同区';
-   if(r.type==='apart')return '没和'+other(r.other)+'同区';
+   if(r.type==='apart')return brief?'与'+other(r.other)+'异区':'没和'+other(r.other)+'同区';
    if(r.type==='above')return '比'+other(r.other)+'高'+r.rows+'行';
    if(r.type==='left')return '比'+other(r.other)+'靠左';
    throw Error('未知证词规则：'+r.type);
-  });return p.victim?p.name+'遇害现场：'+(phrases.length?phrases.join('，')+'；':'')+'同区共2位。':p.name+phrases.join('，')+'。';
+  });return p.victim?p.name+'遇害：'+(phrases.length?phrases.join('，')+'；':'')+'只与凶手同区。':p.name+phrases.join('，')+'。';
  }
- const api={themes,props,names,roles,get,theme,kinds,clue};
+ function generalClue(c,g){
+  const r=g.where,n=g.count;
+  if(r.type==='in')return r.area+(n===0?'无人':'共'+n+'位');
+  if(r.type==='edge')return n===0?'外圈无人':'外圈共有'+n+'位';
+  if(r.type==='corner')return n===0?'四角无人':'四角共有'+n+'位';
+  if(r.type==='on')return get(r.kind).name+(n===0?'上无人':'上共'+n+'位');
+  if(r.type==='beside')return get(r.kind).name+(n===0?'旁无人':'旁共'+n+'位');
+  if(r.type==='any'&&r.rules.every(x=>x.type==='in'))return r.rules.map(x=>x.area).join('与')+'合计'+n+'位';
+  throw Error('未知通用线索');
+ }
+ const api={themes,props,names,roles,get,theme,kinds,clue,generalClue};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ForestProps=api;
 })(typeof window!=='undefined'?window:this);

@@ -19,7 +19,7 @@
  function cleanGame(c,v){
   if(!object(v))return fresh(c);
   const snap=cleanSnapshot(c,v),history=Array.isArray(v.history)?v.history.filter(object).slice(-100).map(s=>cleanSnapshot(c,s)):[],future=Array.isArray(v.future)?v.future.filter(object).slice(-100).map(s=>cleanSnapshot(c,s)):[];
-  if((Number(v.clueRevision)||1)<(c.clueRevision||1)){const changed=new Set(c.changedClues||c.characters.map(p=>p.id));[snap].concat(history,future).forEach(s=>{s.checked=s.checked.filter(id=>!changed.has(id));});}
+  if((Number(v.clueRevision)||1)<(c.clueRevision||1)){const changed=new Set();if(c.clueChangesByRevision){Object.keys(c.clueChangesByRevision).forEach(revision=>{if(Number(revision)>(Number(v.clueRevision)||1)&&Number(revision)<=(c.clueRevision||1))c.clueChangesByRevision[revision].forEach(id=>changed.add(id));});}else (c.changedClues||c.characters.map(p=>p.id)).forEach(id=>changed.add(id));[snap].concat(history,future).forEach(s=>{s.checked=s.checked.filter(id=>!changed.has(id));});}
   return Object.assign({},fresh(c),snap,{history,future,started:v.started===true,seconds:seconds(v.seconds),hints:seconds(v.hints),wrongAccusations:seconds(v.wrongAccusations),attemptActive:typeof v.attemptActive==='boolean'?v.attemptActive:Object.keys(snap.placed).length<c.size,zoom:[1,1.5,2].includes(v.zoom)?v.zoom:1});
  }
  function normalize(value,cases){

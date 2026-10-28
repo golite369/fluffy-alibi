@@ -3,8 +3,8 @@
  const KEY='fluffy-alibi-mobile-v3',BACKUP=KEY+'-backup',PREVIOUS='fluffy-alibi-local-v1',LEGACY='forest-mystery-local-15-v2',FORMAT='fluffy-alibi',VERSION=4,CAMPAIGN='mobile-v3';
  const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
  const seconds=v=>Number.isFinite(v)?Math.max(0,Math.min(31536000,Math.floor(v))):0;
- const settings=v=>({sound:(v&&v.sound)===true,timer:(v&&v.timer)===true,guide:(v&&v.guide)!==false,assist:(v&&v.assist)!==false,largeText:(v&&v.largeText)===true,reducedMotion:(v&&v.reducedMotion)===true});
- function fresh(c){return {placed:{},notes:{},excluded:{},excludedCells:[],checked:[],selected:c.characters[0].id,mode:'place',history:[],future:[],started:false,seconds:0,hints:0,wrongAccusations:0,attemptActive:true,zoom:1};}
+ const settings=v=>({sound:(v&&v.sound)===true,timer:(v&&v.timer)===true,guide:(v&&v.guide)!==false,assist:(v&&v.assist)!==false,manualSeen:(v&&v.manualSeen)===true,largeText:(v&&v.largeText)===true,reducedMotion:(v&&v.reducedMotion)===true});
+ function fresh(c){return {placed:{},notes:{},excluded:{},excludedCells:[],checked:[],clueRevision:c.clueRevision||1,selected:c.characters[0].id,mode:'place',history:[],future:[],started:false,seconds:0,hints:0,wrongAccusations:0,attemptActive:true,zoom:1};}
  function cleanSnapshot(c,value){
   const v=object(value)?value:{},ids=new Set(c.characters.map(p=>p.id)),cells=new Set(),validCell=cell=>Number.isInteger(cell)&&cell>=0&&cell<c.size*c.size,out={placed:{},notes:{},excluded:{},excludedCells:[],checked:[],selected:ids.has(v.selected)?v.selected:c.characters[0].id,mode:['place','erase','exclude'].includes(v.mode)?v.mode:'place'};
   // A free-placement position can contradict a clue; only malformed data is removed here.
@@ -19,6 +19,7 @@
  function cleanGame(c,v){
   if(!object(v))return fresh(c);
   const snap=cleanSnapshot(c,v),history=Array.isArray(v.history)?v.history.filter(object).slice(-100).map(s=>cleanSnapshot(c,s)):[],future=Array.isArray(v.future)?v.future.filter(object).slice(-100).map(s=>cleanSnapshot(c,s)):[];
+  if((Number(v.clueRevision)||1)<(c.clueRevision||1)){const changed=new Set(c.changedClues||c.characters.map(p=>p.id));[snap].concat(history,future).forEach(s=>{s.checked=s.checked.filter(id=>!changed.has(id));});}
   return Object.assign({},fresh(c),snap,{history,future,started:v.started===true,seconds:seconds(v.seconds),hints:seconds(v.hints),wrongAccusations:seconds(v.wrongAccusations),attemptActive:typeof v.attemptActive==='boolean'?v.attemptActive:Object.keys(snap.placed).length<c.size,zoom:[1,1.5,2].includes(v.zoom)?v.zoom:1});
  }
  function normalize(value,cases){

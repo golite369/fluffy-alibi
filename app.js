@@ -46,11 +46,12 @@ window.FluffyWeb.ready.then(function(){
     try { audio=audio||new (window.AudioContext||window.webkitAudioContext)();audio.resume();const o=audio.createOscillator(),g=audio.createGain();o.type='triangle';o.frequency.value=freq;g.gain.setValueAtTime(.07,audio.currentTime);g.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.09);o.connect(g);g.connect(audio.destination);o.start();o.stop(audio.currentTime+.1); } catch(_error){}
   }
   function modal(title, body) {
+    delete dialog.dataset.manual;
     dialog.innerHTML=`<header class="modal-head"><h2 id="modal-title">${title}</h2><button class="quiet-btn" data-action="close-modal" aria-label="关闭">${icon('close')}</button></header><div class="modal-body">${body}</div>`;
     if(!dialog.open){if(typeof dialog.showModal==='function')dialog.showModal();else{dialog.setAttribute('open','');document.body.classList.add('fallback-modal-open');}}
     dialog.scrollTop=0;
   }
-  function closeModal(){if(dialog.open){if(typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');}document.body.classList.remove('fallback-modal-open');}
+  function closeModal(){if(dialog.dataset.manual==='onboarding'){disk.settings.manualSeen=true;save();}delete dialog.dataset.manual;if(dialog.open){if(typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');}document.body.classList.remove('fallback-modal-open');}
   function select(id) {game.selected=id;game.mode='place';lit=null;hintCell=null;persist();render();}
   function positionText(cell) {const [r,col]=E.pos(current,cell);return `第${NUM[r]}行第${NUM[col]}列`;}
   function currentCharacter(){return current.characters.find(p=>p.id===game.selected);}
@@ -121,7 +122,7 @@ window.FluffyWeb.ready.then(function(){
     app.style.setProperty('--game-height',height+'px');
     const rect=scene.getBoundingClientRect(),children=Array.from(scene.children).filter(el=>el!==frame&&el!==wall&&getComputedStyle(el).display!=='none');
     const other=children.reduce((n,el)=>n+el.getBoundingClientRect().height,0)+5*(children.length+1);
-    const side=Math.max(144,Math.min(rect.width,rect.height-other-grid.scrollHeight-4));
+    const side=Math.max(128,Math.min(rect.width,rect.height-other-grid.scrollHeight-4));
     frame.style.width=side+'px';frame.style.height=side+'px';
   }
   function render(){
@@ -160,7 +161,46 @@ window.FluffyWeb.ready.then(function(){
       mutate(()=>{game.placed[p.id]=cell;game.excludedCells=game.excludedCells.filter(at=>at!==cell);});beep();
     }
   }
-  function showRules(){const list=P.kinds(current).map(P.get);modal('现场重建的规则',`<div class="rule-row"><b>一</b><p>每位动物只放一次，<strong>每行、每列恰好一位</strong>。受害者也要放，棋盘不需要填满。</p></div><div class="rule-row"><b>二</b><p>所有线索都是真实的。${list.filter(d=>d.occupiable).map(d=>d.name).join("、")}可以坐或站；${list.filter(d=>!d.occupiable).map(d=>d.name).join("、")}占格，不能站立。动物物种和表情不自动构成线索。</p></div><div class="rule-row"><b>三</b><p>“旁边”指<strong>同一区域的上下左右一格</strong>。斜角与跨区域都不算。</p></div><div class="mini-demo" aria-label="中央道具的四边相邻，四个斜角不相邻"><span class="no">×</span><span class="yes">✓</span><span class="no">×</span><span class="yes">✓</span><span>${propImage(P.theme(current).props.plant,'portrait')}</span><span class="yes">✓</span><span class="no">×</span><span class="yes">✓</span><span class="no">×</span></div><div class="rule-row"><b>四</b><p>案发时，<strong>受害者所在区域只有受害者和凶手</strong>。这是开局给定的案件条件。</p></div><div class="rule-row"><b>五</b><p>先选动物，再点空格放置。“排除”会为格子添加一直显示的公共标记；“擦除”清掉该格动物和标记，场景道具保留。辅助判定可在地图下方或设置中关闭；点“检查现场”后，再主动选择凶手。</p></div><p class="tiny muted">“地图外边缘”指最外一行或最外一列；“四个角之一”只指地图的四个角。大地图可放大后拖动查看。核对勾选是个人笔记，不等于系统验真。<br>“独处”表示区域里只有自己，受害者也不在；人数条件包括自己和受害者。“同一区域”不要求紧挨着。<br>“高一行/两行”只比较行，不要求同列；“所在列更靠左”只比较列，不要求同行。</p><button class="wood-btn full" data-action="close-modal">记住了</button>`);}
+  let guideStep=0,manualTab='basic';
+  function guideContext(){return current||CASES[0];}
+  function guideGrid(type){
+    const c=guideContext(),t=P.theme(c),n=type==='row'||type==='goal'?4:3;
+    const animalAt=type==='row'?{5:'cat'}:type==='goal'?{0:'cat',5:'mouse',10:'dog',15:'fox'}:type==='place'?{4:'cat'}:{};
+    const propAt=type==='beside'?{4:t.props.plant}:type==='space'?{0:t.props.chair,2:t.props.table,7:t.props.plant}:{};
+    return `<div class="guide-grid guide-grid-${type}" data-demo="${type}" style="--demo-size:${n}" role="img" aria-label="${{row:'一位动物占用的行和列示意',goal:'受害者所在区域内只有两位动物的教学示意',place:'选中动物后点击格子放置的教学示意',beside:'中央道具的上下左右相邻，四个斜角不相邻',space:'可落脚道具与占格道具的示意'}[type]}">${Array.from({length:n*n},(_,i)=>{
+      const row=Math.floor(i/n),col=i%n,shaded=type==='row'&&(row===1||col===1),near=type==='beside'&&[1,3,5,7].includes(i),far=type==='beside'&&[0,2,6,8].includes(i),zone=type==='goal'?(row<2?0:2)+(col<2?0:1):0;
+      return `<span class="guide-cell ${shaded?'is-shaded':''} ${near?'is-near':''} ${far?'is-diagonal':''} ${type==='goal'?'guide-zone-'+zone:''} ${type==='goal'&&col===1?'room-edge-r':''} ${type==='goal'&&row===1?'room-edge-b':''}">${propAt[i]?propImage(propAt[i]):''}${animalAt[i]?img(animalAt[i],'guide-token',type==='goal'&&i===5?'受害者':KIND[animalAt[i]]):''}${near?'<b class="guide-yes">✓</b>':''}${far?'<b class="guide-no">×</b>':''}${type==='space'&&[2,7].includes(i)?'<b class="guide-no">×</b>':''}${type==='space'&&i===0?'<b class="guide-yes">✓</b>':''}${type==='goal'&&i===5?'<small class="guide-victim-label">受害者</small>':''}</span>`;
+    }).join('')}</div>`;
+  }
+  function guideSelection(){return `<div class="guide-placement"><div class="guide-sample-card">${img('cat')}<span>先点证词卡<br><strong>小花</strong></span></div><span class="guide-arrow">${icon('arrow')}</span>${guideGrid('place')}</div>`;}
+  function guideErase(){return `<div class="guide-erase-demo"><div><span>擦除前</span><div class="guide-small-board"><b class="persistent-mark">×</b>${img('cat')}</div></div><span class="guide-arrow">${icon('erase')}</span><div><span>擦除后</span><div class="guide-small-board"><b class="persistent-mark">×</b></div></div></div><p class="guide-caption">清掉所点格，其他格的标记保留</p>`;}
+  function guideNeighbors(){const t=P.theme(guideContext());return guideGrid('beside')+`<div class="guide-region-pair"><span>${propImage(t.props.plant)}</span><span>${img('cat')}</span><b>跨粗线 ×</b></div>`;}
+  function showOnboarding(page=0){
+    guideStep=Math.max(0,Math.min(5,Number(page)||0));
+    const pages=[
+      {title:'欢迎，侦探',text:'把每位动物放回现场，再找出与受害者独处的凶手。每个案件都是一个独立谜题。',art:img('appIcon','guide-welcome','三花猫侦探'),note:'先还原位置，再作出指认'},
+      {title:'先点动物，再点格子',text:'点击地图下方的证词卡选动物，再点击地图格子放置。换一张卡，就换一位动物。',art:guideSelection(),note:'每位动物只放一次；点新格子可以移动'},
+      {title:'每行每列，恰好一位',text:'受害者也要放回现场。每行、每列都要有一位动物，棋盘不用填满。',art:guideGrid('row'),note:'辅助开启时，已占行列会变暗；可在地图下方关闭'},
+      {title:'道具和粗线也是线索',text:'先看“图例”，确认哪些道具可以落脚。“旁边”只算同一区域的上下左右。',art:guideNeighbors(),note:'斜角不算，跨区域也不算'},
+      {title:'排除、擦除和撤销',text:'“×”是一直显示的公共标记。用擦除点一下格子，清掉那里的动物和标记；误操作可撤销。',art:guideErase(),note:'选择动物卡会切回放置；场景道具不会被擦掉'},
+      {title:'放齐，再指认',text:'满足全部线索后，点“检查现场”。找到与受害者同区的另一位，再提交指认。',art:guideGrid('goal'),note:'图为教学示意，不是本案答案；卡住可点提示'}
+    ],p=pages[guideStep];
+    modal('新手入门',`<section class="guide-shell" data-guide-page="${guideStep+1}"><header class="guide-head"><span>${String(guideStep+1).padStart(2,'0')} / 06</span><button class="quiet-btn" data-action="guide-exit" aria-label="关闭新手引导">${icon('close')}</button></header><div class="guide-content"><h2>${p.title}</h2><p class="guide-copy">${p.text}</p><div class="guide-art">${p.art}</div><p class="guide-caption">${p.note}</p></div><footer class="guide-foot"><button class="quiet-btn guide-skip" data-action="guide-exit">跳过</button><nav class="guide-dots" aria-label="引导页码">${pages.map((_,i)=>`<button data-action="guide-page" data-page="${i}" aria-label="第${i+1}页" ${i===guideStep?'aria-current="step"':''}></button>`).join('')}</nav><button class="quiet-btn guide-prev" data-action="guide-page" data-page="${guideStep-1}" ${guideStep===0?'disabled':''}>返回</button><button class="wood-btn primary guide-next" data-action="${guideStep===5?'guide-exit':'guide-page'}" ${guideStep<5?`data-page="${guideStep+1}"`:''}>${guideStep===5?'开始探案':'下一页'}</button></footer></section>`);
+    dialog.dataset.manual='onboarding';
+  }
+  function handbookCard(title,art,copyText){return `<figure class="manual-figure"><h3>${title}</h3>${art}<figcaption>${copyText}</figcaption></figure>`;}
+  function showRules(tab='basic'){
+    manualTab=['basic','words','tools','faq'].includes(tab)?tab:'basic';const c=guideContext(),t=P.theme(c),defs=P.kinds(c).map(P.get);
+    const propCards=defs.map(d=>`<div class="manual-prop-card">${propImage(d.id)}<strong>${d.name}</strong><span>${d.occupiable?'可'+d.verb+'在这里':'占格，不可落脚'}</span><b class="${d.occupiable?'guide-yes':'guide-no'}">${d.occupiable?'✓':'×'}</b></div>`).join('');
+    const toolRows=[['place','放置','点动物证词卡，再点地图格子。'],['x','排除','点格子添加公共“×”；再点同格可取消，换动物也一直显示。'],['erase','擦除','清掉所点格的动物及全部标记，保留场景道具。'],['undo','撤销 / 重做','撤销最近一步；更多工具中可重做。'],['hint','提示','逐层给出依据，由你决定是否查看落点。']].map(([key,title,text])=>`<div class="manual-tool-row"><span>${icon(key)}</span><div><strong>${title}</strong><p>${text}</p></div></div>`).join('');
+    const panes={
+      basic:`<h3>目标</h3><p>先把所有动物放回现场，再找出与受害者同区的另一位。案发区域只有受害者和凶手，是本案已知条件。</p><div class="manual-diagrams">${handbookCard('每行每列恰好一位',guideGrid('row'),'包含受害者，棋盘不用填满。')}${handbookCard('可落脚与占格',guideGrid('space'),'✓ 可坐或站；× 道具占格。')}${handbookCard('旁边怎么算',guideNeighbors(),'只算同区上下左右，斜角和跨区不算。')}${handbookCard('最后才指认',guideGrid('goal'),'先放齐并满足线索，再判断谁与受害者独处。')}</div><h3>本场景图例</h3><div class="manual-props">${propCards}</div><button class="wood-btn full" data-action="guide-page" data-page="0">再看六页入门图解</button>`,
+      words:`<div class="manual-diagrams">${handbookCard('同一区域',`<div class="guide-people">${img('cat')}${img('dog')}</div>`,'看粗线分区，同区不要求挨在一起。')}${handbookCard('独处',`<div class="guide-people">${img('fox')}</div>`,'整个区域只有自己，受害者也不在。')}${handbookCard('区域人数',`<div class="guide-people">${img('cat')}${img('dog')}${img('rabbit')}</div>`,'这一区域共3位，人数包括说话者自己。')}${handbookCard('边缘和角落',`<div class="guide-edge-demo"><span>角</span><span>外圈</span><span>角</span><span>外圈</span><span></span><span>外圈</span><span>角</span><span>外圈</span><span>角</span></div>`,'外圈是最外一行或列；角落只有4个。')}</div><p>受害者卡片是勘验记录。所有线索描述案发的同一时刻；职业、表情和故事中的物件归属不会自动构成线索。</p>`,
+      tools:`${guideSelection()}<div class="manual-tool-list">${toolRows}</div>${guideErase()}<h3>辅助判定</h3><div class="manual-assist-examples"><span>辅助：开</span><span>辅助：关</span></div><p>开启时灰显已占行列并拦截规则冲突；关闭后可自由试放。开关位于地图下方和游戏设置，切换不会清空现场，检查现场时仍会校验规则。</p><p>地图可放大后拖动。核对勾选是自己的阅读标记，不等于系统验真。</p>`,
+      faq:`<details open><summary>为什么放齐后还不能结案？</summary><p>行列、道具、区域人数和彼此关系都要满足。点“检查现场”查看尚未对上的线索。</p></details><details><summary>怎么撤下已经放好的动物？</summary><p>点底部“擦除”，再点它所在的格子。误擦可撤销。</p></details><details><summary>切换动物，排除标记会消失吗？</summary><p>不会。它是公共地图标记，保留到你取消、擦除或在该格放置动物。</p></details><details><summary>为什么关闭辅助后能放错位置？</summary><p>关闭后允许自由试放，提交时才检查。这不会改变题目的正确解。</p></details><details><summary>进度保存在哪里？</summary><p>保存在当前浏览器中。换设备或清理数据前，请在存档管理中复制备份。</p></details><button class="wood-btn full" data-action="guide-page" data-page="0">打开六页入门图解</button>`
+    };
+    modal('玩法手册',`<nav class="manual-tabs" aria-label="玩法手册栏目">${[['basic','玩法'],['words','关键词'],['tools','工具'],['faq','常见问题']].map(([key,label])=>`<button class="quiet-btn" data-action="manual-tab" data-tab="${key}" aria-pressed="${manualTab===key}">${label}</button>`).join('')}</nav><section class="manual-pane" data-manual-tab="${manualTab}">${panes[manualTab]}<p class="tiny muted manual-demo-note">图示只说明规则，不是当前案件的答案。</p></section>`);dialog.dataset.manual='handbook';
+  }
   function showLegend(){const t=P.theme(current);modal(t.name+' · 现场图例',`${P.kinds(current).map(k=>{const d=P.get(k);return `<div class="modal-cast-row">${propImage(k)}<div><strong>${d.name}</strong><p>${d.occupiable?'可以'+d.verb+'在这里，仍须满足行列与证词':'此道具占格，不可站立'}</p></div></div>`;}).join('')}<p class="tiny muted">每件道具占一格。粗线是区域边界，“旁边”只算同区上下左右一格。点证词中的道具名可以高亮地图上的同类道具。</p>`);}
   function showAllClues(){modal('全部已核实线索',current.characters.map(p=>`<div class="modal-cast-row">${img(p.kind)}<div><strong>${p.name}</strong> <span class="tiny muted">${KIND[p.kind]} · ${p.role}</span> ${p.victim?'<span class="victim-inline">受害者</span>':''}<p>${p.clue}</p>${game.placed[p.id]!==undefined?`<span class="clue-counter">已放置 · ${positionText(game.placed[p.id])}</span>`:''}</div></div>`).join(''));}
   function showTools(){modal('调查工具',`<div class="tools-list"><button class="wood-btn" data-action="delete-animal">删除当前动物</button><button class="wood-btn" data-action="redo">重做一步</button><button class="wood-btn" data-action="all-clues">全部线索</button><button class="wood-btn" data-action="legend">地图图例</button><button class="wood-btn" data-action="toggle-favorite">${disk.favorites.includes(current.id)?'取消收藏本案':'收藏本案'}</button><button class="wood-btn" data-action="save-manager">存档管理</button><button class="wood-btn" data-action="settings">游戏设置</button><button class="wood-btn" data-action="restart-confirm">重新调查本案</button></div><p class="tiny muted" style="margin-top:16px">移动、删除和笔记都可以撤销。重新调查会清空本案现场，已结案记录保留。</p>`);}
@@ -258,6 +298,9 @@ window.FluffyWeb.ready.then(function(){
       case 'undo':undo();break;
       case 'redo':closeModal();undo(true);break;
       case 'rules':showRules();break;
+      case 'manual-tab':showRules(el.dataset.tab);break;
+      case 'guide-page':showOnboarding(el.dataset.page);break;
+      case 'guide-exit':closeModal();break;
       case 'legend':showLegend();break;
       case 'all-clues':showAllClues();break;
       case 'tools':showTools();break;
@@ -292,6 +335,7 @@ window.FluffyWeb.ready.then(function(){
     }
   });
   document.addEventListener('change',event=>{if(event.target.matches('[data-filter]')){caseFilter=event.target.value;render();return;}if(event.target.dataset.clueCheck){const id=event.target.dataset.clueCheck;mutate(()=>{game.checked=game.checked.includes(id)?game.checked.filter(x=>x!==id):[...game.checked,id];});return;}const key=event.target.dataset.setting;if(!key)return;if(key==='assist'){setAssist(event.target.checked);return;}disk.settings[key]=event.target.checked;save();render();if(key==='sound')beep();});
+  dialog.addEventListener('cancel',event=>{if(dialog.dataset.manual==='onboarding'){event.preventDefault();closeModal();}});
   dialog.addEventListener('click',event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeModal();}});
   document.addEventListener('keydown',event=>{
     if(view!=='game'||dialog.open||event.target.matches('input,textarea'))return;
@@ -309,6 +353,7 @@ window.FluffyWeb.ready.then(function(){
   window.addEventListener('resize',layoutInvestigation);
   if(window.visualViewport)window.visualViewport.addEventListener('resize',layoutInvestigation);
   render();
+  if(!disk.settings.manualSeen)showOnboarding(0);
 })();
 
 }).catch(function(error){document.getElementById("app").textContent="案卷打开失败，请刷新后重试；原存档不会被清除。";});

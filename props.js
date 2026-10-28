@@ -921,10 +921,9 @@
  function kinds(c){const t=theme(c);return roles.map(role=>t.props[role]);}
  function clue(c,p){
   const other=id=>c.characters.find(q=>q.id===id).name;
-  if(p.victim)return p.name+'遇害时，只与凶手同区。';
   const phrases=p.rules.map(r=>{
    if(r.type==='in')return '在'+r.area;
-   if(r.type==='not-in')return '没进'+r.area;
+   if(r.type==='not-in')return (p.victim?'不在':'没进')+r.area;
    if(r.type==='on')return get(r.kind).verb+'在'+(r.area?r.area+'的':'')+get(r.kind).name+'上';
    if(r.type==='not-on')return '没在'+get(r.kind).name+'上';
    if(r.type==='beside')return '身旁是'+get(r.kind).name;
@@ -938,7 +937,7 @@
    if(r.type==='above')return '比'+other(r.other)+'高'+r.rows+'行';
    if(r.type==='left')return '比'+other(r.other)+'靠左';
    throw Error('未知证词规则：'+r.type);
-  });return p.name+phrases.join('，')+'。';
+  });return p.victim?p.name+'遇害现场：'+(phrases.length?phrases.join('，')+'；':'')+'同区共2位。':p.name+phrases.join('，')+'。';
  }
  const api={themes,props,names,roles,get,theme,kinds,clue};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.ForestProps=api;

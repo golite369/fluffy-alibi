@@ -1,0 +1,40 @@
+/* Generated coarse-pixel paper sprites surround the real case maps. */
+body[data-screen="home"] #app{max-width:480px;padding-top:10px;padding-bottom:20px}
+.envelope-casebook .casebook-header{position:relative}
+.envelope-casebook .brand-page.full-brand{min-height:120px;padding:17px 38px 17px 20px;grid-template-columns:minmax(0,1fr) 76px;gap:4px;grid-gap:4px}
+.envelope-casebook .full-brand h1{font-size:24px;line-height:1.55;letter-spacing:1px}
+.envelope-casebook .brand-cat-icon{max-width:76px}
+.book-settings{position:absolute;right:5px;top:4px;min-height:28px;min-width:28px;padding:2px;color:#674827;z-index:2}
+.book-settings .pixel-icon{width:18px;height:18px}
+.envelope-casebook .campaign-progress{margin:12px 5px 14px}
+.envelope-casebook .chapter-tabs{grid-template-columns:repeat(3,minmax(0,1fr));grid-gap:5px;gap:5px;margin-bottom:10px}
+.envelope-casebook .chapter-tabs button{min-height:49px;padding:3px 0;border-width:5px;border-image-width:5px;font-size:12px;grid-gap:2px;gap:2px;box-shadow:2px 2px 0 #49301d}
+.envelope-casebook .chapter-tabs small{font-size:11px}
+.envelope-casebook .chapter-tabs span{font-size:12px}
+.envelope-casebook .case-filter{margin:10px 3px 8px;font-size:13px;grid-gap:8px;gap:8px}
+.envelope-casebook .case-filter select{min-height:31px;padding:3px 20px 3px 8px;font-size:12px}
+.resume-case{display:flex;justify-content:space-between;align-items:center;width:100%;padding:5px 8px;min-height:32px;font-size:12px;color:#ffefbb;background:#51391f;border:1px solid #a67c43;margin:0 0 10px}
+.resume-case .pixel-icon{width:16px;height:16px}
+.case-envelope-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-gap:8px;gap:8px;align-items:start}
+.case-envelope-grid .empty-list{grid-column:1 / -1}
+.envelope-card{display:block;position:relative;width:100%;height:276px;min-width:0;padding:0;border:0;background:none;box-shadow:none;text-align:center;color:#402b19;cursor:pointer;overflow:hidden;isolation:isolate}
+@supports(aspect-ratio:3/4){.envelope-card{height:auto;aspect-ratio:3/4}}
+.envelope-art{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:fill;pointer-events:none;image-rendering:pixelated}
+.envelope-back{z-index:0}.envelope-front{z-index:2;clip-path:polygon(0 10%,50% 40%,100% 10%,100% 100%,0 100%);-webkit-clip-path:polygon(0 10%,50% 40%,100% 10%,100% 100%,0 100%)}
+.envelope-preview{display:block;position:absolute;left:10%;top:12%;width:80%;height:0;padding-top:80%;z-index:1;pointer-events:none;overflow:hidden;background:#d2bc89}
+.envelope-preview .board-holder{position:absolute;left:0;top:0;width:100%;height:100%;padding:0;margin:0}
+.envelope-preview .board{position:absolute;left:0;top:0;width:100%;height:100%;margin:0;border:2px solid #49311e;box-shadow:none;grid-template-rows:repeat(var(--size),minmax(0,1fr));font-size:5px;pointer-events:none}
+.envelope-preview .cell{min-height:0;min-width:0;aspect-ratio:auto;border-width:0 1px 1px 0;padding:0;overflow:hidden;pointer-events:none}
+.envelope-preview .cell.edge-r{border-right-width:2px}.envelope-preview .cell.edge-b{border-bottom-width:2px}
+.envelope-preview .coords-col,.envelope-preview .coords-row,.envelope-preview .region-label,.envelope-preview .victim-dot{display:none}
+.envelope-preview .x-mark{font-size:16px;line-height:1}.envelope-preview .prop{image-rendering:pixelated}
+.envelope-title{position:absolute;z-index:3;left:10%;right:10%;bottom:17%;font:14px/1.4 var(--sans);color:#3c2819;max-height:40px;overflow:hidden;pointer-events:none}
+.envelope-meta{position:absolute;z-index:3;left:9%;right:9%;bottom:10%;font:11px/1.35 var(--sans);color:#624528;white-space:nowrap;pointer-events:none}
+.envelope-state{position:absolute;z-index:3;left:20%;right:20%;bottom:4%;font:12px/1.2 var(--sans);color:#7e4128;pointer-events:none}
+.envelope-card.is-open .envelope-preview{top:16%;left:13%;width:74%;padding-top:74%}
+.envelope-card.is-open .envelope-title{bottom:19%}
+.envelope-card.is-open .envelope-meta{bottom:12%}
+.envelope-card.is-open .envelope-state{bottom:6%;color:#5b6c3b}
+.envelope-card.is-solved .envelope-state{color:#963d31}
+.envelope-card:focus{outline:2px solid #ffe3a1;outline-offset:1px}
+@media(max-width:370px){.envelope-casebook .brand-page.full-brand{min-height:106px;padding-left:13px;grid-template-columns:minmax(0,1fr) 64px}.envelope-casebook .full-brand h1{font-size:21px}.envelope-casebook .brand-cat-icon{max-width:64px}.envelope-title{font-size:13px}.envelope-meta{font-size:10px}.envelope-state{font-size:11px}.envelope-casebook .chapter-tabs span{font-size:11px}.case-envelope-grid{grid-gap:5px;gap:5px}}

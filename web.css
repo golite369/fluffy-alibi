@@ -21,5 +21,11 @@ body[data-screen="game"] .map-viewport{height:100%;max-height:none}
 @media(max-height:690px){.no-flex-gap .scene-desk>*+*{margin-top:4px}}
 
 /* Keep a portrait game column on tablets and landscape screens. */
+.map-controls .assist-toggle{min-width:66px;color:#fff0bf;border:1px solid #b38b51;background:#5c422a}
+.map-controls .assist-toggle[aria-pressed="true"]{color:#f3f4ce;background:#4f6536;border-color:#a6b573}
+.investigation[data-tool-mode="erase"] .cell{cursor:crosshair}
+.tool[data-mode="erase"] .pixel-icon{color:#e8cf9d}
+.tool[data-mode="erase"][aria-pressed="true"] .pixel-icon{color:#f8f0ce}
+.assist-help{margin:0 0 12px;line-height:1.6}
 body[data-screen="game"] #app{margin-left:auto;margin-right:auto}
 @supports(height:100dvh){body[data-screen="game"]{height:100dvh}}

@@ -3,13 +3,16 @@
  const KEY='fluffy-alibi-mobile-v3',BACKUP=KEY+'-backup',PREVIOUS='fluffy-alibi-local-v1',LEGACY='forest-mystery-local-15-v2',FORMAT='fluffy-alibi',VERSION=4,CAMPAIGN='mobile-v3';
  const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
  const seconds=v=>Number.isFinite(v)?Math.max(0,Math.min(31536000,Math.floor(v))):0;
- const settings=v=>({sound:(v&&v.sound)===true,timer:(v&&v.timer)===true,guide:(v&&v.guide)!==false,largeText:(v&&v.largeText)===true,reducedMotion:(v&&v.reducedMotion)===true});
- function fresh(c){return {placed:{},notes:{},excluded:{},checked:[],selected:c.characters[0].id,mode:'place',history:[],future:[],started:false,seconds:0,hints:0,wrongAccusations:0,attemptActive:true,zoom:1};}
+ const settings=v=>({sound:(v&&v.sound)===true,timer:(v&&v.timer)===true,guide:(v&&v.guide)!==false,assist:(v&&v.assist)!==false,largeText:(v&&v.largeText)===true,reducedMotion:(v&&v.reducedMotion)===true});
+ function fresh(c){return {placed:{},notes:{},excluded:{},excludedCells:[],checked:[],selected:c.characters[0].id,mode:'place',history:[],future:[],started:false,seconds:0,hints:0,wrongAccusations:0,attemptActive:true,zoom:1};}
  function cleanSnapshot(c,value){
-  const v=object(value)?value:{},ids=new Set(c.characters.map(p=>p.id)),E=root.ForestEngine||(typeof require==='function'?require('./engine'):null),out={placed:{},notes:{},excluded:{},checked:[],selected:ids.has(v.selected)?v.selected:c.characters[0].id,mode:['place','note','exclude'].includes(v.mode)?v.mode:'place'};
-  for(const [id,cell] of Object.entries(object(v.placed)?v.placed:{}))if(ids.has(id)&&Number.isInteger(cell)&&E.passable(c,cell)&&!E.structural(c,out.placed,id,cell))out.placed[id]=cell;
-  for(const field of ['notes','excluded'])for(const id of ids)if(Array.isArray((v[field]&&v[field][id])))out[field][id]=[...new Set(v[field][id].filter(cell=>Number.isInteger(cell)&&E.passable(c,cell)))].slice(0,c.size*c.size);
-  for(const id of ids)if(out.notes[id]&&out.excluded[id])out.notes[id]=out.notes[id].filter(cell=>!out.excluded[id].includes(cell));
+  const v=object(value)?value:{},ids=new Set(c.characters.map(p=>p.id)),cells=new Set(),validCell=cell=>Number.isInteger(cell)&&cell>=0&&cell<c.size*c.size,out={placed:{},notes:{},excluded:{},excludedCells:[],checked:[],selected:ids.has(v.selected)?v.selected:c.characters[0].id,mode:['place','erase','exclude'].includes(v.mode)?v.mode:'place'};
+  // A free-placement position can contradict a clue; only malformed data is removed here.
+  for(const [id,cell] of Object.entries(object(v.placed)?v.placed:{}))if(ids.has(id)&&validCell(cell)&&!cells.has(cell)){out.placed[id]=cell;cells.add(cell);}
+  // Keep the old notes field in the save format, but retire candidate marks and candidate mode.
+  const marks=new Set((Array.isArray(v.excludedCells)?v.excludedCells:[]).filter(validCell));
+  for(const id of ids)if(Array.isArray((v.excluded&&v.excluded[id])))v.excluded[id].filter(validCell).forEach(cell=>marks.add(cell));
+  out.excludedCells=Array.from(marks);
   out.checked=Array.isArray(v.checked)?[...new Set(v.checked.filter(id=>ids.has(id)))]:[];
   return out;
  }

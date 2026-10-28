@@ -23,30 +23,42 @@
  }
  function effect(ctx,dest,name,time,track){if(name==='erase'||name==='open')brush(ctx,dest,time,name==='erase' ? .13 : .18,name==='erase' ? .22 : .15,track);(FX[name]||[]).forEach(n=>tone(ctx,dest,time+n[0],n[1],n[2],n[3],'triangle',track));}
  function create(environment){
-  const env=environment||root,Context=env.AudioContext||env.webkitAudioContext;let ctx=null,musicBus=null,effectsBus=null,settings={sound:false,music:false,soundVolume:.55,musicVolume:.3},timer=null,bar=0,next=0,hidden=false,pagePaused=false,unlocked=false,starting=null,lastEffect=-1,lastName='',failed=false;
-  const musicVoices=new Set(),effectsVoices=new Set(),setTimer=env.setInterval?env.setInterval.bind(env):null,clearTimer=env.clearInterval?env.clearInterval.bind(env):null;
-  function gain(bus,value){if(!ctx||!bus)return;const p=bus.gain;try{p.cancelScheduledValues(ctx.currentTime);p.setValueAtTime(p.value,ctx.currentTime);p.linearRampToValueAtTime(value,ctx.currentTime+.07);}catch(error){p.value=value;}}
-  function stopVoices(voices,fade){voices.forEach(v=>{try{if(fade&&ctx&&ctx.state==='running'){const p=v.gain.gain;p.cancelScheduledValues(ctx.currentTime);p.setValueAtTime(p.value,ctx.currentTime);p.linearRampToValueAtTime(.00001,ctx.currentTime+.025);v.node.stop(ctx.currentTime+.035);}else{v.node.stop();v.node.disconnect();v.gain.disconnect();if(v.filter)v.filter.disconnect();}}catch(error){}});voices.clear();}
-  function stopMusic(){if(timer!==null&&clearTimer)clearTimer(timer);timer=null;stopVoices(musicVoices,!hidden&&!pagePaused);}
-  function enabled(){return settings.music&&settings.musicVolume>0&&unlocked&&ctx&&ctx.state==='running'&&!hidden&&!pagePaused;}
-  function tick(){if(!enabled()){stopMusic();return;}if(next<ctx.currentTime-.2)next=ctx.currentTime+.05;while(next<ctx.currentTime+.4){musicBar(ctx,musicBus,next,bar++,musicVoices);next+=BAR;}}
-  function sync(){gain(musicBus,settings.musicVolume);gain(effectsBus,settings.soundVolume);if(enabled()){if(timer===null){next=ctx.currentTime+.05;tick();if(setTimer)timer=setTimer(tick,150);}}else stopMusic();}
-  function unlock(force){
-   if(hidden||pagePaused||(!force&&!settings.sound&&!settings.music)||!Context||failed)return Promise.resolve(false);
-   try{if(!ctx){ctx=new Context();musicBus=ctx.createGain();effectsBus=ctx.createGain();musicBus.gain.value=0;effectsBus.gain.value=settings.soundVolume;musicBus.connect(ctx.destination);effectsBus.connect(ctx.destination);if(typeof ctx.addEventListener==='function')ctx.addEventListener('statechange',()=>{if(ctx.state==='running'&&unlocked)sync();else stopMusic();});}
-    if(starting)return starting;
-    const attempt=ctx.state==='suspended'||ctx.state==='interrupted'?ctx.resume():Promise.resolve();starting=Promise.resolve(attempt).then(()=>{unlocked=ctx.state==='running';starting=null;sync();return unlocked;},()=>{starting=null;return false;});return starting;
-   }catch(error){failed=true;stopMusic();return Promise.resolve(false);}
+  const env=environment||root,Audio=env.Audio,setTimer=env.setTimeout?env.setTimeout.bind(env):setTimeout,clearTimer=env.clearTimeout?env.clearTimeout.bind(env):clearTimeout;
+  let music=null,fx=null,settings={sound:false,music:false,soundVolume:.55,musicVolume:.3},hidden=!!(env.document&&env.document.hidden),pagePaused=false,unlocked=false,error='',volumeControllable=true,disposed=false;
+  const sequence={music:0,fx:0},pending={music:null,fx:null},states={music:'idle',fx:'idle'};
+  const names=['open','select','place','exclude','erase','undo','redo','hint','check','error','win','preview'];
+  const source=name=>'assets/audio/'+name+'-v1.wav';
+  function notify(){if(typeof api.onChange==='function')api.onChange(api.status);}
+  function session(){try{if(env.navigator&&env.navigator.audioSession)env.navigator.audioSession.type='playback';}catch(ignore){}}
+  function cancel(channel){const request=pending[channel];if(request){clearTimer(request.timer);pending[channel]=null;request.resolve(false);}}
+  function stop(channel,reset){cancel(channel);sequence[channel]++;const el=channel==='music'?music:fx;if(el){try{el.pause();if(reset)el.currentTime=0;}catch(ignore){}}states[channel]='paused';}
+  function ensure(){
+   if(disposed||typeof Audio!=='function')return false;if(music&&fx)return true;
+   try{music=new Audio();fx=new Audio();[[music,'music'],[fx,'fx']].forEach(pair=>{const el=pair[0],channel=pair[1];el.preload='auto';el.loop=channel==='music';el.hidden=true;el.id='fluffy-audio-'+channel;if(typeof el.setAttribute==='function'){el.setAttribute('playsinline','');el.setAttribute('webkit-playsinline','');el.setAttribute('aria-hidden','true');}if(env.document&&env.document.body)env.document.body.appendChild(el);
+    if(typeof el.addEventListener==='function'){el.addEventListener('playing',()=>{if(!hidden&&!pagePaused){states[channel]='playing';unlocked=true;notify();}});el.addEventListener('ended',()=>{states[channel]='ended';notify();});el.addEventListener('error',()=>{if(el.error){states[channel]='error';error='音频未能加载，请检查网络后点击重试。';notify();}});}
+   });applyVolume();return true;}catch(ignore){error='当前浏览器无法创建播放器。';return false;}
   }
-  function configure(value){const v=value||{};settings={sound:v.sound===true,music:v.music===true,soundVolume:limit(v.soundVolume,.55),musicVolume:limit(v.musicVolume,.3)};if(!settings.sound)stopVoices(effectsVoices,true);sync();}
-  function play(name){if(!settings.sound||!settings.soundVolume||hidden||pagePaused)return Promise.resolve(false);return unlock().then(ok=>{if(!ok||!settings.sound||hidden||pagePaused)return false;if(name===lastName&&ctx.currentTime-lastEffect<.045)return false;lastName=name;lastEffect=ctx.currentTime;effect(ctx,effectsBus,name,ctx.currentTime+.005,effectsVoices);return true;});}
-  function preview(){return unlock(true).then(ok=>{if(!ok||hidden||pagePaused)return false;effect(ctx,effectsBus,'open',ctx.currentTime+.01,effectsVoices);effect(ctx,effectsBus,'place',ctx.currentTime+.3,effectsVoices);effect(ctx,effectsBus,'erase',ctx.currentTime+.58,effectsVoices);effect(ctx,effectsBus,'hint',ctx.currentTime+.85,effectsVoices);effect(ctx,effectsBus,'win',ctx.currentTime+1.5,effectsVoices);return true;});}
-  function pause(value){hidden=value===true;if(hidden){stopMusic();stopVoices(effectsVoices);if(ctx&&typeof ctx.suspend==='function')try{const p=ctx.suspend();if(p&&p.catch)p.catch(()=>{});}catch(error){}}else if(unlocked)unlock();}
+  function volume(el,value){if(!el)return;try{el.volume=value;if(Math.abs(el.volume-value)>.02)volumeControllable=false;}catch(ignore){volumeControllable=false;}el.muted=value===0;}
+  function applyVolume(){volume(music,settings.musicVolume);volume(fx,settings.soundVolume);}
+  function start(el,channel){
+   if(hidden||pagePaused||disposed)return Promise.resolve(false);cancel(channel);const id=++sequence[channel];states[channel]='loading';error='';session();notify();
+   return new Promise(resolve=>{let settled=false;const finish=(ok,message)=>{if(settled)return;settled=true;if(id!==sequence[channel]){resolve(false);return;}const request=pending[channel];if(request)clearTimer(request.timer);pending[channel]=null;if(hidden||pagePaused||disposed){try{el.pause();}catch(ignore){}states[channel]='paused';resolve(false);return;}states[channel]=ok?'playing':'blocked';if(ok)unlocked=true;else{error=message||'播放受限，请点“开启／重试声音”再试一次。';try{el.pause();}catch(ignore){}}notify();resolve(ok);};
+    pending[channel]={resolve,timer:setTimer(()=>finish(false,'声音加载或授权超时，请点“开启／重试声音”。'),6000)};
+    // Keep play() in this trusted input call stack, before awaiting any promise.
+    try{const result=el.play();Promise.resolve(result).then(()=>finish(true),reason=>{if(reason&&reason.name==='AbortError'){finish(false,'声音已暂停，点击即可重新播放。');return;}finish(false,reason&&reason.name==='NotAllowedError'?'微信或浏览器尚未允许播放，请直接点“开启／重试声音”。':'播放未成功，请检查媒体音量并点击重试。');});}catch(ignore){finish(false);}
+   });
+  }
+  function unlock(force){if(hidden||pagePaused||disposed||(!force&&!settings.sound&&!settings.music)||!ensure())return Promise.resolve(false);session();if(settings.music&&settings.musicVolume>0){if(states.music==='playing'&&!music.paused)return Promise.resolve(true);if(!music.src)music.src=source('music');else if(music.error)music.load();return start(music,'music');}return Promise.resolve(true);}
+  function configure(value){const v=value||{};settings={sound:v.sound===true,music:v.music===true,soundVolume:limit(v.soundVolume,.55),musicVolume:limit(v.musicVolume,.3)};applyVolume();if(!settings.music||settings.musicVolume===0)stop('music',false);if(!settings.sound||settings.soundVolume===0)stop('fx',false);notify();}
+  function play(name){if(!names.includes(name)||!settings.sound||settings.soundVolume===0||hidden||pagePaused||!ensure())return Promise.resolve(false);stop('fx',false);fx.src=source(name);volume(fx,settings.soundVolume);return start(fx,'fx');}
+  function preview(){if(hidden||pagePaused||!ensure())return Promise.resolve(false);stop('fx',false);fx.src=source('preview');volume(fx,settings.soundVolume);if(settings.soundVolume===0){error='音效音量为0，请先调高音量。';notify();return Promise.resolve(false);}return start(fx,'fx');}
+  function pause(value){hidden=value===true;if(hidden){stop('music',false);stop('fx',false);}else if(unlocked&&settings.music)unlock();notify();}
   function pagehide(){pagePaused=true;pause(true);}
   function pageshow(){pagePaused=false;pause(!!(env.document&&env.document.hidden));}
-  function dispose(){stopMusic();stopVoices(effectsVoices);unlocked=false;if(ctx&&typeof ctx.close==='function')try{const p=ctx.close();if(p&&p.catch)p.catch(()=>{});}catch(error){}ctx=null;}
-  return {configure,unlock,play,preview,pause,pagehide,pageshow,dispose,get status(){return {supported:!!Context&&!failed,unlocked,musicPlaying:timer!==null,voices:musicVoices.size+effectsVoices.size,state:ctx?ctx.state:'idle',settings:Object.assign({},settings)};}};
+  function dispose(){stop('music',false);stop('fx',false);disposed=true;[music,fx].forEach(el=>{if(el){try{el.removeAttribute('src');el.load();if(el.parentNode)el.parentNode.removeChild(el);}catch(ignore){}}});music=null;fx=null;}
+  const api={configure,unlock,play,preview,pause,pagehide,pageshow,dispose,onChange:null,get status(){return {backend:'media',supported:typeof Audio==='function',unlocked,musicPlaying:!!(music&&!music.paused&&states.music==='playing'),effectsPlaying:!!(fx&&!fx.paused&&states.fx==='playing'),state:states.music==='playing'||states.fx==='playing'?'playing':error?'blocked':states.music==='loading'||states.fx==='loading'?'loading':'idle',error,volumeControllable,settings:Object.assign({},settings)};}};return api;
  }
+
  const api={create,musicBar,effect,tempo:BPM,loopSeconds:16*BAR,title:'午夜案卷',effectNames:['open','select','place','exclude','erase','undo','redo','hint','check','error','win']};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FluffySound=api;
 })(typeof window!=='undefined'?window:this);

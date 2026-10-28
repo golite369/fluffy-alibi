@@ -1,8 +1,8 @@
 (function(root){
  'use strict';
- const BPM=72,BEAT=60/BPM,BAR=BEAT*4;
- const chords=[[57,60,64,71],[53,57,60,64],[50,53,57,64],[52,57,59,64],[57,60,64,67],[55,59,62,69],[53,57,60,67],[52,56,59,62],[57,60,64,71],[53,57,60,64],[50,53,57,64],[55,59,62,65],[53,57,60,64],[50,53,57,60],[52,56,59,62],[52,57,59,64]];
- const melody=[[[.5,76],[2,72],[3.25,71]],[[1,69],[2.75,72]],[[.5,74],[2,72],[3,69]],[[1,71],[2.5,76]],[[.5,79],[1.75,76],[3,72]],[[.75,74],[2.5,71]],[[1,72],[3,69]],[[.5,71],[2,68]],[[.5,76],[2,79],[3.25,76]],[[1,72],[2.75,69]],[[.5,74],[2.5,77]],[[1,74],[3,71]],[[.5,72],[2,69]],[[1,69],[2.5,65]],[[.5,68],[2,71],[3,76]],[[1,74],[2.5,71]]];
+ const BPM=108,BEAT=60/BPM,BAR=BEAT*4;
+ const chords=[[60,64,67,69],[55,59,62,67],[53,57,60,65],[55,59,62,65],[60,64,67,72],[57,60,64,67],[53,57,60,65],[55,59,62,67],[60,64,67,69],[55,59,62,67],[53,57,60,65],[55,59,62,65],[60,64,67,72],[53,57,60,65],[55,59,62,65],[60,64,67,72]];
+ const melody=[[[0,72],[0.5,76],[1,79],[2,76],[2.5,74],[3,76]],[[0,74],[0.5,76],[1,79],[2,81],[3,79]],[[0,77],[1,81],[1.5,79],[2,77],[3,76]],[[0,74],[1,71],[2,74],[3,79]],[[0,76],[0.5,79],[1,84],[2,83],[2.5,81],[3,79]],[[0,81],[1,79],[2,76],[2.5,74],[3,72]],[[0,77],[0.5,79],[1,81],[2,79],[3,77]],[[0,74],[1,76],[2,79],[3,74]],[[0,72],[0.5,76],[1,79],[2,84],[3,79]],[[0,83],[1,81],[2,79],[2.5,76],[3,74]],[[0,77],[1,81],[2,84],[3,81]],[[0,79],[0.5,77],[1,76],[2,74],[3,71]],[[0,72],[0.5,74],[1,76],[2,79],[3,76]],[[0,77],[1,79],[2,81],[3,77]],[[0,79],[1,77],[2,74],[3,71]],[[0,72],[1,76],[2,79],[3,72]]];
  const FX={select:[[.0,76,.07,.16]],place:[[0,69,.11,.23],[.025,76,.1,.11]],exclude:[[0,62,.055,.12]],undo:[[0,72,.09,.16],[.075,67,.1,.13]],redo:[[0,67,.09,.13],[.075,72,.1,.16]],hint:[[0,74,.2,.16],[.095,77,.22,.13],[.19,81,.3,.1]],check:[[0,72,.14,.16],[.1,79,.2,.13]],error:[[0,57,.13,.16],[.13,55,.17,.12]],win:[[0,72,.32,.18],[.13,76,.34,.17],[.26,79,.36,.16],[.39,84,.65,.14]],open:[[.04,69,.13,.09]]};
  const frequency=midi=>440*Math.pow(2,(midi-69)/12),limit=(v,fallback)=>Number.isFinite(v)?Math.max(0,Math.min(1,v)):fallback;
  function tone(ctx,dest,time,midi,length,level,kind,track){
@@ -17,9 +17,11 @@
  }
  function musicBar(ctx,dest,time,bar,track){
   const n=((bar%16)+16)%16,chord=chords[n];
-  chord.forEach((note,i)=>tone(ctx,dest,time+i*.035,note,2.3,.08,'sine',track));
-  tone(ctx,dest,time,chord[0]-12,.68,.275,'sine',track);tone(ctx,dest,time+2*BEAT,chord[0]-12,.58,.19,'sine',track);
-  melody[n].forEach(note=>{tone(ctx,dest,time+note[0]*BEAT,note[1],.78,.225,'triangle',track);tone(ctx,dest,time+note[0]*BEAT,note[1]+12,.38,.0225,'sine',track);});
+  // Light offbeat plucked accompaniment, soft mallet melody and quiet shaker.
+  [.5,1.5,2.5,3.5].forEach(beat=>chord.slice(0,3).forEach((note,i)=>{tone(ctx,dest,time+beat*BEAT+i*.012,note,.26,.036,'triangle',track);tone(ctx,dest,time+beat*BEAT+i*.012,note,.32,.025,'sine',track);}));
+  tone(ctx,dest,time,chord[0]-12,.36,.18,'sine',track);tone(ctx,dest,time+2*BEAT,chord[0]-12,.3,.14,'sine',track);
+  melody[n].forEach(note=>{const at=time+note[0]*BEAT;tone(ctx,dest,at,note[1],.5,.13,'sine',track);tone(ctx,dest,at,note[1],.38,.032,'triangle',track);tone(ctx,dest,at,note[1]+12,.2,.009,'sine',track);});
+  [1,3].forEach(beat=>brush(ctx,dest,time+beat*BEAT,.055,.035,track));
  }
  function effect(ctx,dest,name,time,track){if(name==='erase'||name==='open')brush(ctx,dest,time,name==='erase' ? .13 : .18,name==='erase' ? .22 : .15,track);(FX[name]||[]).forEach(n=>tone(ctx,dest,time+n[0],n[1],n[2],n[3],'triangle',track));}
  function create(environment){
@@ -27,7 +29,7 @@
   let music=null,fx=null,settings={sound:false,music:false,soundVolume:.55,musicVolume:.3},hidden=!!(env.document&&env.document.hidden),pagePaused=false,unlocked=false,error='',volumeControllable=true,disposed=false;
   const sequence={music:0,fx:0},pending={music:null,fx:null},states={music:'idle',fx:'idle'};
   const names=['open','select','place','exclude','erase','undo','redo','hint','check','error','win','preview'];
-  const source=name=>'assets/audio/'+name+'-v1.wav';
+  const source=name=>'assets/audio/'+name+(name==='music'?'-v2.wav':'-v1.wav');
   function notify(){if(typeof api.onChange==='function')api.onChange(api.status);}
   function session(){try{if(env.navigator&&env.navigator.audioSession)env.navigator.audioSession.type='playback';}catch(ignore){}}
   function cancel(channel){const request=pending[channel];if(request){clearTimer(request.timer);pending[channel]=null;request.resolve(false);}}
@@ -59,6 +61,6 @@
   const api={configure,unlock,play,preview,pause,pagehide,pageshow,dispose,onChange:null,get status(){return {backend:'media',supported:typeof Audio==='function',unlocked,musicPlaying:!!(music&&!music.paused&&states.music==='playing'),effectsPlaying:!!(fx&&!fx.paused&&states.fx==='playing'),state:states.music==='playing'||states.fx==='playing'?'playing':error?'blocked':states.music==='loading'||states.fx==='loading'?'loading':'idle',error,volumeControllable,settings:Object.assign({},settings)};}};return api;
  }
 
- const api={create,musicBar,effect,tempo:BPM,loopSeconds:16*BAR,title:'午夜案卷',effectNames:['open','select','place','exclude','erase','undo','redo','hint','check','error','win']};
+ const api={create,musicBar,effect,tempo:BPM,loopSeconds:16*BAR,title:'晴日小侦探',effectNames:['open','select','place','exclude','erase','undo','redo','hint','check','error','win']};
  if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FluffySound=api;
 })(typeof window!=='undefined'?window:this);

@@ -13,7 +13,7 @@ window.FluffyWeb.ready.then(function(){
   let disk=S.read(storage,CASES),storageWarned=false,pendingImport=null;
   let view = 'home', current = null, game = null, lit = null, hintCell = null, hint = null, chosen = null, replayIndex = 0;
   let toastTimer, pendingCell, audio;
-  let chapterTab=0,caseFilter='all';
+  let chapterTab=0,caseFilter='all',introAfterGuide=false;
   const pixelIcons={"back":["000100000000","001100000000","011100000000","111111111110","011100000000","001100000000","000100000000"],"more":["000000000000","000000000000","011001100110","011001100110","000000000000"],"close":["110000000011","011000000110","001100001100","000110011000","000011110000","000001100000","000011110000","000110011000","001100001100","011000000110","110000000011"],"place":["000011000000","000011000000","000111100000","000111100000","001111110000","001111110000","011111111000","000111100000","000111100000","011111111000"],"note":["000000011000","000000111100","000001111110","000011111100","000111111000","001111110000","011111100000","011111000000","011110000000","011100000000","011000000000"],"undo":["000100000000","001100000000","011111111000","111111111100","011100001110","001100000110","000100000110","000000000110","000000001110","000111111100","000111111000"],"hint":["000111111000","001100001100","011000000110","011000000110","011000000110","001100001100","000110011000","000110011000","000111111000","000100001000","000111111000","000011110000"],"arrow":["000000010000","000000011000","000000011100","011111111110","011111111111","011111111110","000000011100","000000011000","000000010000"],"book":["011111111110","110001100011","110001100011","110001100011","110001100011","110001100011","110001100011","110001100011","111111111111","011111111110"],"check":["000000000011","000000000110","000000001100","000000011000","110000110000","011001100000","001111000000","000110000000"],"sound":["000011000000","000111000100","001111001100","111111011000","111111011000","111111011000","001111001100","000111000100","000011000000"],"gear":["000110011000","001111111100","011111111110","111100001111","111000000111","011001100110","011001100110","111000000111","111100001111","011111111110","001111111100","000110011000"],"x":["110000000011","011000000110","001100001100","000110011000","000011110000","000001100000","000011110000","000110011000","001100001100","011000000110","110000000011"]};
   pixelIcons.erase=['000001110000','000011111000','000111111100','001111111110','011111111100','111111111000','011111110000','001111100000','000111000000','000011111110'];
   const icon=name=>{const rows=pixelIcons[name]||pixelIcons.more,offset=Math.floor((12-rows.length)/2);return '<svg class="pixel-icon" aria-hidden="true" viewBox="0 0 12 12" shape-rendering="crispEdges">'+rows.flatMap((row,y)=>[...row].flatMap((p,x)=>p==='1'?['<rect x="'+x+'" y="'+(y+offset)+'" width="1" height="1"/>']:[])).join('')+'</svg>';};
@@ -51,7 +51,7 @@ window.FluffyWeb.ready.then(function(){
     if(!dialog.open){if(typeof dialog.showModal==='function')dialog.showModal();else{dialog.setAttribute('open','');document.body.classList.add('fallback-modal-open');}}
     dialog.scrollTop=0;
   }
-  function closeModal(){if(dialog.dataset.manual==='onboarding'){disk.settings.manualSeen=true;save();}delete dialog.dataset.manual;if(dialog.open){if(typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');}document.body.classList.remove('fallback-modal-open');}
+  function closeModal(){const continueIntro=dialog.dataset.manual==='onboarding'&&introAfterGuide;introAfterGuide=false;if(dialog.dataset.manual==='onboarding'){disk.settings.manualSeen=true;save();}delete dialog.dataset.manual;if(dialog.open){if(typeof dialog.close==='function')dialog.close();else dialog.removeAttribute('open');}document.body.classList.remove('fallback-modal-open');if(continueIntro&&view==='game'&&current&&!game.started)showIntro();}
   function select(id) {game.selected=id;game.mode='place';lit=null;hintCell=null;persist();render();}
   function positionText(cell) {const [r,col]=E.pos(current,cell);return `第${NUM[r]}行第${NUM[col]}列`;}
   function currentCharacter(){return current.characters.find(p=>p.id===game.selected);}
@@ -136,9 +136,10 @@ window.FluffyWeb.ready.then(function(){
   function openCase(id,force=false){
     persist();const c=CASES.find(c=>c.id===id);if(!c)return;
     current=c;chapterTab=c.chapterIndex;game=load(c);lit=null;hintCell=null;hint=null;
-    if(disk.completed.includes(id)&&!force&&!game.attemptActive){view='resolution';replayIndex=c.steps.length;render();window.scrollTo(0,0);return;}
-    view='game';persist();render();window.scrollTo(0,0);
-    if(!game.started)showIntro();
+    if(disk.completed.includes(id)&&!force&&!game.attemptActive){view='resolution';replayIndex=c.steps.length;render();window.scrollTo(0,0);}
+    else{view='game';persist();render();window.scrollTo(0,0);}
+    if(!disk.settings.manualSeen){introAfterGuide=view==='game'&&!game.started;showOnboarding(0);return;}
+    if(view==='game'&&!game.started)showIntro();
   }
   function showIntro(){modal(current.title,`${chapterCover(current.chapterIndex,'intro-cover')}${current.level%5===1?`<p class="chapter-opening">${current.chapterStory}</p>`:''}<div class="eyebrow">第${current.level}关 · ${current.chapter} · ${NUM[current.size]}位动物</div><p style="margin-top:10px">${current.intro}</p><div style="clear:both"></div><div class="intro-rule">${current.premise}<br><strong>每行、每列恰好一位。所有线索均为真。</strong></div><div class="skill-note"><strong>本案关注：${current.focus}</strong>${current.skills.includes('above')?'<p>“高一行/两行”只比较行号，不要求同一列。</p>':''}${current.skills.includes('left')?'<p>“所在列更靠左”只比较列号，不要求同一行。</p>':''}${current.skills.includes('count')?'<p>区域人数包括该动物本人，也包括受害者。</p>':''}</div><p class="tiny muted">受害者也需要放回现场。图例随时可查，卡住时可向探长要一点提示。</p><button class="wood-btn primary full" data-action="start-investigation">展开现场 ${icon('arrow')}</button>`);}
   function tapCell(cell,override=false){
@@ -353,7 +354,6 @@ window.FluffyWeb.ready.then(function(){
   window.addEventListener('resize',layoutInvestigation);
   if(window.visualViewport)window.visualViewport.addEventListener('resize',layoutInvestigation);
   render();
-  if(!disk.settings.manualSeen)showOnboarding(0);
 })();
 
 }).catch(function(error){document.getElementById("app").textContent="案卷打开失败，请刷新后重试；原存档不会被清除。";});
